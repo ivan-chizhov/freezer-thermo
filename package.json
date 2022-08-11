@@ -1,0 +1,23 @@
+{
+  "name": "freezer-thermo",
+  "version": "1.0.0",
+  "description": "Freezer Thermostat",
+  "scripts": {
+    "start": "node build.js && electron ./dist/main.js"
+  },
+  "author": "Ivan Chizhov",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^20.0.0"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.10.0",
+    "@emotion/styled": "^11.10.0",
+    "@reduxjs/toolkit": "^1.8.3",
+    "esbuild": "^0.14.51",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "usb": "^2.5.0",
+    "zustand": "^4.0.0"
+  }
+}
