@@ -8,7 +8,8 @@
   "author": "Ivan Chizhov",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^20.0.0"
+    "electron": "^20.0.0",
+    "prettier": "^2.7.1"
   },
   "dependencies": {
     "@emotion/react": "^11.10.0",
