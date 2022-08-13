@@ -11,8 +11,6 @@ const webusb = new WebUSB({
   allowAllDevices: true,
 })
 
-const immediate = () => new Promise((resolve) => setImmediate(resolve))
-
 export class Publisher {
   appWindow = null
 
@@ -138,7 +136,7 @@ class OutsideDevice extends SensorDevice {
       freezer = insideTemperature - outsideTemperature > 5
       machine = insideTemperature < 50
     } else {
-      freezer = false
+      freezer = insideTemperature !== undefined && insideTemperature > 32
       machine = outsideTemperature === undefined || (outsideTemperature && outsideTemperature < 50)
     }
 
@@ -241,8 +239,6 @@ export class DeviceManager {
       await bridge.enterMpsseMode()
       await bridge.mpsseSelfCheck()
 
-      // await bridge.mpsseSetAC([undefined, undefined, undefined])
-
       await bridge.mpsseEnterI2cMode()
 
       const sensor = new Bme280(bridge, BME280_ADDR)
@@ -299,7 +295,7 @@ export class DeviceManager {
       try {
         await device.sense()
       } catch (e) {
-        console.error('Error in sensor loop:', e)
+        console.error('Error in sense loop:', e)
       }
 
       await this.closeDisconnectedDevices()
