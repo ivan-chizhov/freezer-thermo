@@ -200,7 +200,7 @@ export default function App() {
           <HumidityInstrument sensorName="outside" />
         </DashboardPanel>
         <DashboardPanel>
-          <DashboardPanelHeading>Switches</DashboardPanelHeading>
+          <DashboardPanelHeading>Switch</DashboardPanelHeading>
           <SwitchInstrument name="Freezer" path="freezer" />
           <SwitchInstrument name="Machine" path="machine" />
         </DashboardPanel>

@@ -14,6 +14,7 @@ const createAppWindow = () => {
       nodeIntegration: true,
       contextIsolation: false,
     },
+    autoHideMenuBar: true,
     show: false,
   })
 

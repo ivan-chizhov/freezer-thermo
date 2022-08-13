@@ -140,7 +140,12 @@ class OutsideDevice extends SensorDevice {
       machine = outsideTemperature === undefined || (outsideTemperature && outsideTemperature < 50)
     }
 
-    await this.bridge.mpsseSetAC([undefined, undefined, undefined, freezer ? 0 : undefined, machine ? 0 : undefined])
+    try {
+      await this.bridge.mpsseSetAC([undefined, undefined, undefined, freezer ? 0 : undefined, machine ? 0 : undefined])
+    } catch (e) {
+      freezer = undefined
+      machine = undefined
+    }
 
     this.publisher.publish('switch', { freezer, machine })
   }
