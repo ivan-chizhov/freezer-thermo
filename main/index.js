@@ -9,7 +9,7 @@ let deviceManager = null
 const createAppWindow = () => {
   const window = new BrowserWindow({
     width: 640,
-    height: 120,
+    height: 360,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,

@@ -68,25 +68,40 @@ class Device {
   }
 
   async sense() {}
+
+  async react() {}
+
   async close() {}
 }
 
 class SensorDevice extends Device {
-  constructor(usb, sensor, publisher, sensorChannel) {
+  constructor(usb, bridge, sensor, publisher, sensorChannel) {
     super(usb)
 
+    this.bridge = bridge
     this.sensor = sensor
     this.publisher = publisher
     this.sensorChannel = sensorChannel
   }
 
   async sense() {
-    const [temperature, pressure, humidity] = await this.sensor.readTempPressHum()
-    this.publish(temperature, pressure, humidity)
+    let temperature, pressure, humidity
+    try {
+      ;[temperature, pressure, humidity] = await this.sensor.readTempPressHum()
+    } finally {
+      this.publish(temperature, pressure, humidity)
+    }
   }
 
   async close() {
     this.publish(undefined, undefined, undefined)
+
+    if (this.bridge !== null) {
+      try {
+        await this.bridge.close()
+      } catch (e) {}
+      this.bridge = null
+    }
   }
 
   publish(temperature, pressure, humidity) {
@@ -96,28 +111,50 @@ class SensorDevice extends Device {
 
 class InsideDevice extends SensorDevice {
   constructor(usb, bridge, sensor, publisher) {
-    super(usb, sensor, publisher, 'sensor')
-
-    this.bridge = bridge
+    super(usb, bridge, sensor, publisher, 'inside')
   }
 
   get type() {
     return DeviceTypes.INSIDE
   }
+}
+
+class OutsideDevice extends SensorDevice {
+  constructor(usb, bridge, sensor, publisher) {
+    super(usb, bridge, sensor, publisher, 'outside')
+  }
+
+  get type() {
+    return DeviceTypes.OUTSIDE
+  }
+
+  async react() {
+    let freezer, machine
+
+    const insideTemperature = this.publisher.latestData.inside && this.publisher.latestData.inside.temperature
+    const outsideTemperature = this.publisher.latestData.outside && this.publisher.latestData.outside.temperature
+
+    if (insideTemperature !== undefined && outsideTemperature !== undefined) {
+      freezer = insideTemperature - outsideTemperature > 5
+      machine = insideTemperature < 50
+    } else {
+      freezer = false
+      machine = outsideTemperature === undefined || (outsideTemperature && outsideTemperature < 50)
+    }
+
+    await this.bridge.mpsseSetAC([undefined, undefined, undefined, freezer ? 0 : undefined, machine ? 0 : undefined])
+
+    this.publisher.publish('switch', { freezer, machine })
+  }
 
   async close() {
     await super.close()
 
-    if (this.bridge !== null) {
-      try {
-        await this.bridge.close()
-      } catch (e) {}
-      this.bridge = null
-    }
+    this.publisher.publish('switch', { freezer: undefined, machine: undefined })
   }
 }
 
-// sensor.calibrationHash()
+// sensor.calibrationHash
 const deviceTypeBySensorHash = Object.freeze({
   4890670046: DeviceTypes.OUTSIDE,
   5145062515: DeviceTypes.INSIDE,
@@ -128,6 +165,9 @@ const createDevice = (type, usb, bridge, sensor, publisher) => {
   switch (type) {
     case DeviceTypes.INSIDE:
       return new InsideDevice(usb, bridge, sensor, publisher)
+
+    case DeviceTypes.OUTSIDE:
+      return new OutsideDevice(usb, bridge, sensor, publisher)
   }
 }
 
@@ -201,7 +241,7 @@ export class DeviceManager {
       await bridge.enterMpsseMode()
       await bridge.mpsseSelfCheck()
 
-      await bridge.mpsseSetAC([undefined, undefined, undefined])
+      // await bridge.mpsseSetAC([undefined, undefined, undefined])
 
       await bridge.mpsseEnterI2cMode()
 
@@ -260,6 +300,18 @@ export class DeviceManager {
         await device.sense()
       } catch (e) {
         console.error('Error in sensor loop:', e)
+      }
+
+      await this.closeDisconnectedDevices()
+    }
+
+    for (let i = 0; i < this.devices.length && !this.stopRequested; i++) {
+      const device = this.devices[i]
+
+      try {
+        await device.react()
+      } catch (e) {
+        console.error('Error in react loop:', e)
       }
 
       await this.closeDisconnectedDevices()
