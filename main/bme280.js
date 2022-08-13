@@ -68,7 +68,7 @@ export class Bme280 {
     await this.write8u(Bme280Registers.CTRL_MEAS, 0b00100111) // t * 1, h * 1, normal
   }
 
-  calibrationHash() {
+  get calibrationHash() {
     let value = 17
     const hash = (param) => (value = (value << 5) - value + param) // shift operation truncates value to 32-bits
 

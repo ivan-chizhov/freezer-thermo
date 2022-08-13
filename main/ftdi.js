@@ -1,12 +1,3 @@
-import { WebUSB } from 'usb'
-
-const webusb = new WebUSB({
-  allowAllDevices: true,
-})
-
-const vendorId = 0x0403
-const productId = 0x6014
-
 export class FtdiBridgeError extends Error {
   constructor(message) {
     super(message)
@@ -37,7 +28,9 @@ const MpsseCommands = Object.freeze({
 })
 
 export class FtdiBridge {
-  constructor() {
+  constructor(usb) {
+    this.usb = usb
+
     // interface A
     this.interface = 0
     this.index = 1
@@ -46,36 +39,30 @@ export class FtdiBridge {
   }
 
   async open() {
-    try {
-      this.device = await webusb.requestDevice({ filters: [{ vendorId, productId }] })
-    } catch (e) {
-      throw new FtdiBridgeError(e.message)
-    }
+    await this.usb.open()
 
-    await this.device.open()
-
-    const bcdDevice = this.device.device.deviceDescriptor.bcdDevice
+    const bcdDevice = this.usb.device.deviceDescriptor.bcdDevice
     if (bcdDevice !== 0x900) {
       throw new FtdiBridgeError(`Unknown device: ${bcdDevice}`)
     }
 
-    if (this.device.configuration === null) {
-      await this.device.selectConfiguration(1)
+    if (this.usb.configuration === null) {
+      await this.usb.selectConfiguration(1)
     }
 
-    await this.device.claimInterface(0)
+    await this.usb.claimInterface(0)
 
-    this.packetSize = this.device.configurations[0].interfaces[0].alternates[0].endpoints[0].packetSize
+    this.packetSize = this.usb.configurations[0].interfaces[0].alternates[0].endpoints[0].packetSize
   }
 
   async close() {
-    if (this.device) {
-      await this.device.close()
+    if (this.usb) {
+      await this.usb.close()
     }
   }
 
   async reset() {
-    const result = await this.device.controlTransferOut({
+    const result = await this.usb.controlTransferOut({
       requestType: 'vendor',
       recipient: 'device',
       request: 0, // reset port
@@ -89,7 +76,7 @@ export class FtdiBridge {
   }
 
   async getLatencyTimer() {
-    const result = await this.device.controlTransferIn(
+    const result = await this.usb.controlTransferIn(
       {
         requestType: 'vendor',
         recipient: 'device',
@@ -108,7 +95,7 @@ export class FtdiBridge {
   }
 
   async setLatencyTimer(value) {
-    const result = await this.device.controlTransferOut({
+    const result = await this.usb.controlTransferOut({
       requestType: 'vendor',
       recipient: 'device',
       request: 0x09, // set latency timer
@@ -124,7 +111,7 @@ export class FtdiBridge {
   async setBitMode(mask, mode) {
     const value = mask | (mode << 8)
 
-    const result = await this.device.controlTransferOut({
+    const result = await this.usb.controlTransferOut({
       requestType: 'vendor',
       recipient: 'device',
       request: 0x0b, // set bitmode
@@ -148,7 +135,7 @@ export class FtdiBridge {
     let position = 0
     while (position < length) {
       const blockLength = Math.min(this.packetSize, length - position + 2)
-      const result = await this.device.transferIn(this.inputEndpointNumber, blockLength)
+      const result = await this.usb.transferIn(this.inputEndpointNumber, blockLength)
       if (result.status !== 'ok') {
         throw new FtdiBridgeError(`Error reading from device: ${result.status}`)
       }
@@ -170,7 +157,7 @@ export class FtdiBridge {
     while (position < length) {
       const blockLength = Math.min(this.packetSize, length - position)
       const blockView = new Uint8Array(buffer, offset + position, blockLength)
-      const result = await this.device.transferOut(this.outputEndpointNumber, blockView)
+      const result = await this.usb.transferOut(this.outputEndpointNumber, blockView)
       if (result.status !== 'ok') {
         throw new FtdiBridgeError(`Error writing to device: ${result.status}`)
       }
