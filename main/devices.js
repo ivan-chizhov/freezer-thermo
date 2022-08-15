@@ -143,7 +143,7 @@ class StickyTrigger {
 }
 
 class OutsideDevice extends SensorDevice {
-  freezerTrigger = new StickyTrigger(false, 15 * 60 * 1000)
+  freezerTrigger = new StickyTrigger(false, 10 * 60 * 1000)
   machineTrigger = new StickyTrigger(true, 24 * 60 * 60 * 1000)
 
   constructor(usb, bridge, sensor, publisher) {
@@ -159,7 +159,7 @@ class OutsideDevice extends SensorDevice {
     const outsideTemperature = this.publisher.latestData.outside && this.publisher.latestData.outside.temperature
 
     if (insideTemperature !== undefined && outsideTemperature !== undefined) {
-      if (insideTemperature - outsideTemperature > 5) {
+      if (insideTemperature - outsideTemperature > 3) {
         this.freezerTrigger.trigger()
       }
     } else if (insideTemperature !== undefined) {
