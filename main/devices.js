@@ -117,7 +117,35 @@ class InsideDevice extends SensorDevice {
   }
 }
 
+class StickyTrigger {
+  constructor(normalValue, triggerDuration) {
+    this.normalValue = normalValue
+    this.triggerDuration = triggerDuration
+    this.value = normalValue
+    this.triggeredUntil = null
+  }
+
+  trigger() {
+    this.value = !this.normalValue
+    this.triggeredUntil = Date.now().valueOf() + this.triggerDuration
+  }
+
+  update() {
+    if (this.triggeredUntil === null) {
+      this.value = this.normalValue
+    } else if (Date.now().valueOf() < this.triggeredUntil) {
+      this.value = !this.normalValue
+    } else {
+      this.value = this.normalValue
+      this.triggeredUntil = null
+    }
+  }
+}
+
 class OutsideDevice extends SensorDevice {
+  freezerTrigger = new StickyTrigger(false, 15 * 60 * 1000)
+  machineTrigger = new StickyTrigger(true, 24 * 60 * 60 * 1000)
+
   constructor(usb, bridge, sensor, publisher) {
     super(usb, bridge, sensor, publisher, 'outside')
   }
@@ -127,18 +155,34 @@ class OutsideDevice extends SensorDevice {
   }
 
   async react() {
-    let freezer, machine
-
     const insideTemperature = this.publisher.latestData.inside && this.publisher.latestData.inside.temperature
     const outsideTemperature = this.publisher.latestData.outside && this.publisher.latestData.outside.temperature
 
     if (insideTemperature !== undefined && outsideTemperature !== undefined) {
-      freezer = insideTemperature - outsideTemperature > 5
-      machine = insideTemperature < 50
-    } else {
-      freezer = insideTemperature !== undefined && insideTemperature > 32
-      machine = outsideTemperature === undefined || (outsideTemperature && outsideTemperature < 50)
+      if (insideTemperature - outsideTemperature > 5) {
+        this.freezerTrigger.trigger()
+      }
+    } else if (insideTemperature !== undefined) {
+      if (insideTemperature > 32) {
+        this.freezerTrigger.trigger()
+      }
     }
+
+    if (insideTemperature !== undefined) {
+      if (insideTemperature > 50) {
+        this.machineTrigger.trigger()
+      }
+    } else if (outsideTemperature !== undefined) {
+      if (outsideTemperature > 50) {
+        this.machineTrigger.trigger()
+      }
+    }
+
+    this.freezerTrigger.update()
+    this.machineTrigger.update()
+
+    let freezer = this.freezerTrigger.value
+    let machine = this.machineTrigger.value
 
     try {
       await this.bridge.mpsseSetAC([undefined, undefined, undefined, freezer ? 0 : undefined, machine ? 0 : undefined])
